@@ -1,0 +1,5 @@
+= kots-cache
+
+Provider-agnostic caching library on Cats and Cats Effect, cross-built for Scala 2.13 and 3. One algebra in `core`; every backend is an adapter over it. The core depends on Cats and Cats Effect only.
+
+License: LGPL-3.0-or-later
