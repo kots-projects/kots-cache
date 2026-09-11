@@ -9,6 +9,7 @@ final class HazelcastCacheSuite extends CacheContract {
 
   private lazy val client = {
     val config = new ClientConfig()
+    config.getNetworkConfig.addAddress("127.0.0.1:5701")
     config.getConnectionStrategyConfig.getConnectionRetryConfig
       .setClusterConnectTimeoutMillis(30000L)
     HazelcastClient.newHazelcastClient(config)
