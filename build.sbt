@@ -1,7 +1,9 @@
 import Dependencies.*
 
 lazy val commonSettings = Seq(
-  organization := "kots.cache",
+  organization := "io.github.kots-projects.cache",
+  publishTo := Some(Registry.publishing("kots-cache")),
+  credentials ++= Registry.credentials,
   version := "0.1.0-SNAPSHOT",
   scalaVersion := scala213,
   crossScalaVersions := Seq(scala213, scala3),
