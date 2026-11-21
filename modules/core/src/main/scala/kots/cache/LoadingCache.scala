@@ -36,14 +36,14 @@ object LoadingCache {
 
         private def lead(key: K, load: F[V], d: Flight[F, V]): F[V] =
           F.uncancelable { poll =>
-            poll(load).attempt
-              .flatTap(_.traverse_(underlying.put(key, _)))
-              .productL(flights.update(_ - key))
+            poll(load)
+              .flatMap(value => underlying.put(key, value).as(value))
+              .attempt
               .flatTap(d.complete)
+              .guarantee(flights.update(_ - key))
               .rethrow
               .onCancel(
-                flights.update(_ - key) *>
-                  d.complete(Left(new CancellationException("load canceled"))).void,
+                d.complete(Left(new CancellationException("load canceled"))).void,
               )
           }
 
