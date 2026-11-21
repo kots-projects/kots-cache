@@ -144,7 +144,8 @@ final class MeteredSuite extends CatsEffectSuite {
   }
   test("every no-op metric runs") {
     val m = CacheMetrics.noop[IO]
-    (m.hit *> m.miss *> m.load *> m.eviction).assertEquals(())
+    (m.hit *> m.miss *> m.load *> m.eviction *>
+      m.getLatency(1.millis) *> m.loadLatency(1.millis, true) *> m.entryLifetime(1.millis)).assertEquals(())
   }
 
   test("the no-op metrics change nothing") {
