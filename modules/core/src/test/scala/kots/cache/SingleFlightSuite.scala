@@ -95,4 +95,30 @@ final class SingleFlightSuite extends CatsEffectSuite {
         c.getOrLoad("k")(once.as(9)).product(calls.get)
     }.assertEquals((9, 2))
   }
+
+  test("a store failure releases the flight for a retry") {
+    (for {
+      store <- stub
+      writes <- Ref.of[IO, Int](0)
+      failing = new Cache[IO, String, Int] {
+        def get(key: String): IO[Option[Int]] = store.get(key)
+        def put(key: String, value: Int): IO[Unit] =
+          writes.get.flatMap { n =>
+            if (n == 0) writes.update(_ + 1) *> IO.raiseError(new IllegalStateException("store full"))
+            else store.put(key, value)
+          }
+        def modify[A](key: String)(f: Option[Int] => (Option[Int], A)): IO[A] = store.modify(key)(f)
+        def remove(key: String): IO[Unit] = store.remove(key)
+        def clear: IO[Unit] = store.clear
+      }
+      c <- LoadingCache.singleFlight(failing)
+      first <- c.getOrLoad("k")(IO.pure(5)).attempt
+      retried <- c.getOrLoad("k")(IO.pure(9))
+      cached <- c.get("k")
+    } yield {
+      assert(first.isLeft)
+      assertEquals(retried, 9)
+      assertEquals(cached, Some(9))
+    })
+  }
 }
