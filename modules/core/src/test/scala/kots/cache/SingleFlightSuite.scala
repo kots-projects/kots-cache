@@ -54,7 +54,7 @@ final class SingleFlightSuite extends CatsEffectSuite {
       }
       c <- LoadingCache.singleFlight(counting)
       calls <- Ref.of[IO, Int](0)
-      load = calls.update(_ + 1) *> IO.sleep(10.millis).as(42)
+      load = calls.update(_ + 1) *> IO.sleep(250.millis).as(42)
       vs <- List.fill(50)(c.getOrLoad("k")(load)).parSequence
       loads <- calls.get
       reads <- gets.get

@@ -33,18 +33,16 @@ object LoadingCache {
           }
 
         private def lead(key: K, load: F[V], d: Flight[F, V]): F[V] =
-          OptionT(underlying.get(key)).getOrElseF {
-            F.uncancelable { poll =>
-              poll(load)
-                .flatMap(value => underlying.put(key, value).as(value))
-                .attempt
-                .flatTap(d.complete)
-                .guarantee(flights.update(_ - key))
-                .rethrow
-                .onCancel(
-                  d.complete(Left(new CancellationException("load canceled"))).void,
-                )
-            }
+          F.uncancelable { poll =>
+            OptionT(poll(underlying.get(key)))
+              .getOrElseF(poll(load).flatMap(value => underlying.put(key, value).as(value)))
+              .attempt
+              .flatTap(d.complete)
+              .guarantee(flights.update(_ - key))
+              .rethrow
+              .onCancel(
+                d.complete(Left(new CancellationException("load canceled"))).void,
+              )
           }
 
         def get(key: K): F[Option[V]] = underlying.get(key)
