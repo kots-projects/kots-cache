@@ -23,28 +23,28 @@ object LoadingCache {
     F.ref(Map.empty[K, Flight[F, V]]).map { flights =>
       new LoadingCache[F, K, V] {
         def getOrLoad(key: K)(load: F[V]): F[V] =
-          OptionT(underlying.get(key)).getOrElseF {
-            F.deferred[Either[Throwable, V]].flatMap { d =>
-              flights.modify { m =>
-                m.get(key) match {
-                  case Some(inFlight) => (m, inFlight.get.rethrow)
-                  case None           => (m.updated(key, d), lead(key, load, d))
-                }
-              }.flatten
-            }
+          F.deferred[Either[Throwable, V]].flatMap { d =>
+            flights.modify { m =>
+              m.get(key) match {
+                case Some(inFlight) => (m, inFlight.get.rethrow)
+                case None           => (m.updated(key, d), lead(key, load, d))
+              }
+            }.flatten
           }
 
         private def lead(key: K, load: F[V], d: Flight[F, V]): F[V] =
-          F.uncancelable { poll =>
-            poll(load)
-              .flatMap(value => underlying.put(key, value).as(value))
-              .attempt
-              .flatTap(d.complete)
-              .guarantee(flights.update(_ - key))
-              .rethrow
-              .onCancel(
-                d.complete(Left(new CancellationException("load canceled"))).void,
-              )
+          OptionT(underlying.get(key)).getOrElseF {
+            F.uncancelable { poll =>
+              poll(load)
+                .flatMap(value => underlying.put(key, value).as(value))
+                .attempt
+                .flatTap(d.complete)
+                .guarantee(flights.update(_ - key))
+                .rethrow
+                .onCancel(
+                  d.complete(Left(new CancellationException("load canceled"))).void,
+                )
+            }
           }
 
         def get(key: K): F[Option[V]] = underlying.get(key)

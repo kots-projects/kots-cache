@@ -41,6 +41,30 @@ final class SingleFlightSuite extends CatsEffectSuite {
     }
   }
 
+  test("fifty concurrent reads of one key consult the store once") {
+    (for {
+      store <- stub
+      gets <- Ref.of[IO, Int](0)
+      counting = new Cache[IO, String, Int] {
+        def get(key: String): IO[Option[Int]] = gets.update(_ + 1) *> store.get(key)
+        def put(key: String, value: Int): IO[Unit] = store.put(key, value)
+        def modify[A](key: String)(f: Option[Int] => (Option[Int], A)): IO[A] = store.modify(key)(f)
+        def remove(key: String): IO[Unit] = store.remove(key)
+        def clear: IO[Unit] = store.clear
+      }
+      c <- LoadingCache.singleFlight(counting)
+      calls <- Ref.of[IO, Int](0)
+      load = calls.update(_ + 1) *> IO.sleep(10.millis).as(42)
+      vs <- List.fill(50)(c.getOrLoad("k")(load)).parSequence
+      loads <- calls.get
+      reads <- gets.get
+    } yield {
+      assertEquals(vs.toSet, Set(42))
+      assertEquals(loads, 1)
+      assertEquals(reads, 1)
+    })
+  }
+
   test("a present value is returned without running the loader") {
     loading.flatMap { case (c, calls) =>
       c.put("k", 7) *> c.getOrLoad("k")(calls.update(_ + 1).as(0)).product(calls.get)
