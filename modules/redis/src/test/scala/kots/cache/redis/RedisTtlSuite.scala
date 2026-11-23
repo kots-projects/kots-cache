@@ -49,6 +49,30 @@ final class RedisTtlSuite extends CatsEffectSuite {
     c.put("a", 1) *> IO.sleep(400.millis) *> c.get("a").assertEquals(None)
   }
 
+  test("a sub-millisecond time-to-live still expires a put entry") {
+    val ns = s"subput-${java.util.UUID.randomUUID()}"
+    val c = RedisCache.of[IO, String, Int](
+      allocated._1,
+      Codec.string,
+      Codec.int,
+      namespace = ns,
+      timeToLive = Some(500.microseconds),
+    )
+    c.put("a", 1) *> IO.sleep(100.millis) *> c.get("a").assertEquals(None)
+  }
+
+  test("a sub-millisecond time-to-live still expires a modified entry") {
+    val ns = s"submod-${java.util.UUID.randomUUID()}"
+    val c = RedisCache.of[IO, String, Int](
+      allocated._1,
+      Codec.string,
+      Codec.int,
+      namespace = ns,
+      timeToLive = Some(500.microseconds),
+    )
+    c.modify("a")(_ => (Some(1), ())) *> IO.sleep(100.millis) *> c.get("a").assertEquals(None)
+  }
+
   test("modify keeps the time-to-live on the written value") {
     val ns = s"mod-${java.util.UUID.randomUUID()}"
     val c = cacheIn(ns)

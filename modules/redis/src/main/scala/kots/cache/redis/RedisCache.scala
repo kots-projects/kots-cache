@@ -7,7 +7,7 @@ import dev.profunktor.redis4cats.data.KeyScanCursor
 import dev.profunktor.redis4cats.effects.{KeyScanArgs, ScriptOutputType}
 import kots.cache.{Cache, Codec, CodecError, Retry}
 
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.{DurationLong, FiniteDuration}
 
 /** Raised when a stored text form no longer parses as the typed value. */
 final case class CodecException(error: CodecError)
@@ -51,6 +51,8 @@ object RedisCache {
     new Cache[F, K, V] {
       private val scanArgs = KeyScanArgs(s"$namespace:*", ScanPage)
 
+      private val expiryMs = timeToLive.map(d => d.toMillis max 1L)
+
       private def raw(key: K): String = s"$namespace:${keyCodec.encode(key)}"
 
       private def parse(text: String): F[V] =
@@ -60,9 +62,9 @@ object RedisCache {
         commands.get(raw(key)).flatMap(_.traverse(parse))
 
       def put(key: K, value: V): F[Unit] =
-        timeToLive match {
-          case Some(ttl) => commands.setEx(raw(key), valueCodec.encode(value), ttl)
-          case None      => commands.set(raw(key), valueCodec.encode(value))
+        expiryMs match {
+          case Some(ms) => commands.setEx(raw(key), valueCodec.encode(value), ms.millis)
+          case None     => commands.set(raw(key), valueCodec.encode(value))
         }
 
       def modify[A](key: K)(f: Option[V] => (Option[V], A)): F[A] =
@@ -73,7 +75,7 @@ object RedisCache {
           current <- commands.get(raw(key))
           typed <- current.traverse(parse)
           (next, a) = f(typed)
-          ttlMs = timeToLive.fold(0L)(_.toMillis).toString
+          ttlMs = expiryMs.getOrElse(0L).toString
           args = List(
             current.fold("0")(_ => "1"),
             current.getOrElse(""),
