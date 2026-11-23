@@ -103,7 +103,7 @@ object MemCache {
                 case found                   => (found, None)
               }
               val (next, a) = f(live.map(_.value))
-              (next.fold(m - key)(v => m.updated(key, Entry(v, now, now))), (a, age))
+              (next.fold(m - key)(v => m.updated(key, Entry(v, live.fold(now)(_.writeAt), now))), (a, age))
             }.flatMap { case (a, age) => died(age).as(a) }
           }
 

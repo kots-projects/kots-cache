@@ -34,6 +34,16 @@ final class MemExpirySuite extends CatsEffectSuite {
     }.assertEquals(Some(2))
   }
 
+  test("modify keeps the original time-to-live deadline") {
+    TestControl.executeEmbed {
+      ttlCache.flatMap { c =>
+        c.put("a", 1) *> IO.sleep(45.seconds) *>
+          c.modify("a")(o => (o.map(_ + 1), o)) *>
+          IO.sleep(45.seconds) *> c.get("a")
+      }
+    }.assertEquals(None)
+  }
+
   test("modify sees an expired entry as absent") {
     TestControl.executeEmbed {
       ttlCache.flatMap { c =>
