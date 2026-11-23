@@ -71,6 +71,22 @@ final class MeteredSuite extends CatsEffectSuite {
     }.assertEquals(List(5.millis, 5.millis))
   }
 
+  test("a failed get still reports its latency, and counts neither hit nor miss") {
+    TestControl.executeEmbed {
+      (stub, probe).flatMapN { (c0, p) =>
+        val failing = new Cache[IO, String, Int] {
+          def get(key: String): IO[Option[Int]] =
+            IO.sleep(4.millis) *> IO.raiseError[Option[Int]](new Exception("boom"))
+          def put(key: String, value: Int): IO[Unit] = c0.put(key, value)
+          def modify[A](key: String)(f: Option[Int] => (Option[Int], A)): IO[A] = c0.modify(key)(f)
+          def remove(key: String): IO[Unit] = c0.remove(key)
+          def clear: IO[Unit] = c0.clear
+        }
+        Metered.cache(failing, p).get("a").attempt *> (p.getLatencies.get, p.hits.get, p.misses.get).tupled
+      }
+    }.assertEquals((List(4.millis), 0, 0))
+  }
+
   test("load latency and outcome are measured for a successful load") {
     TestControl.executeEmbed {
       (stub, probe).flatMapN { (c0, p) =>
